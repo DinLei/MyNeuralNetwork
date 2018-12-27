@@ -7,3 +7,5 @@
 3. https://medium.com/@14prakash/back-propagation-is-very-simple-who-made-it-complicated-97b794c97e5c
 
 （假如最后一个链接无法打开，前两个也是足够用的）
+
+第1篇博客中，错误和缺少的部分在本代码中已纠正，有需要的可以核对相应代码
