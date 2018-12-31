@@ -43,7 +43,7 @@ class NeuralNetwork(BaseModel):
             return self.l2_lambda * self.parameters["W"+str(i)]
         return None
 
-    def _model_forward(self, input_x):
+    def _model_forward(self, input_x, keep_prob=1):
         caches = []
         layers = len(self.parameters) // 2
         a_i = input_x
@@ -52,12 +52,12 @@ class NeuralNetwork(BaseModel):
             z_i, linear_cache = linear_forward(a_i_prev,
                                                self.parameters["W"+str(i)],
                                                self.parameters["b"+str(i)])
-            a_i, activation_cache = activate_forward(z_i, "relu")
+            a_i, activation_cache = activate_forward(z_i, "relu", keep_prob=keep_prob)
             caches.append((linear_cache, activation_cache))
         z_l, linear_cache = linear_forward(a_i,
                                            self.parameters["W" + str(layers-1)],
                                            self.parameters["b" + str(layers-1)])
-        a_l, activation_cache = activate_forward(z_l, "soft_max", axis=1)
+        a_l, activation_cache = activate_forward(z_l, "soft_max", axis=1, keep_prob=1)
         caches.append((linear_cache, activation_cache))
 
         assert a_l.shape == (input_x.shape[0], self.class_num)
@@ -81,7 +81,8 @@ class NeuralNetwork(BaseModel):
         for j in reversed(range(layers-1)):
             curr_cache = caches[j]
             linear_cache, activation_cache = curr_cache
-            da_j = da_prev
+            da_j = keep_prob_backward(da_prev=da_prev, activation_cache=activation_cache)
+
             dz_j = activation_backward(da_j, activation_cache, "relu")
             da_prev, dw_j, db_j = linear_backward(dz_j,
                                                   linear_cache,
@@ -102,6 +103,7 @@ class NeuralNetwork(BaseModel):
                  num_iterations=1000,
                  batch_size=100,
                  l2_lambda=None,
+                 keep_prob=1,
                  print_cost=False):
         costs = []
         self.l2_lambda = l2_lambda
@@ -119,7 +121,7 @@ class NeuralNetwork(BaseModel):
                     part = tuple(index[j * batch_size: (j + 1) * batch_size])
                 batch_x = self.X[part, :]
                 batch_y = self.Y[list(part)]
-                a_l, caches = self._model_forward(batch_x)
+                a_l, caches = self._model_forward(batch_x, keep_prob=keep_prob)
                 cost = cross_entropy_loss(a_l, batch_y, self._get_l2_loss())
                 self._model_backward(a_l, caches, batch_y)
                 self._update_parameters(learning_rate)
@@ -141,7 +143,8 @@ def linear_forward(a_i, w_i, b_i):
     return z_i, cache
 
 
-def activate_forward(z_i, activation, axis=None, keepdims=True):
+def activate_forward(z_i, activation, axis=None, keepdims=True, keep_prob=1):
+    assert 0 < keep_prob <= 1
     if activation == "sigmoid":
         a_i1 = sigmoid(z_i)
     elif activation == "tanh":
@@ -152,7 +155,11 @@ def activate_forward(z_i, activation, axis=None, keepdims=True):
         a_i1 = soft_max(z_i, axis=axis, keepdims=keepdims)
     else:
         raise Exception("Have not def this activation function!")
-    cache = z_i
+    nrow, ncol = a_i1.shape
+    drop_mask = np.random.rand(nrow, ncol) < keep_prob
+    a_i1 *= drop_mask
+    a_i1 = a_i1 / keep_prob
+    cache = (z_i, drop_mask, keep_prob)
     return a_i1, cache
 
 
@@ -192,7 +199,9 @@ def linear_backward(dz_i, linear_cache, l2_reg_gradient=None):
         dw_i += l2_reg_gradient
     db_i = np.squeeze(np.sum(dz_i, axis=0, keepdims=True))/ele_num
     db_i = db_i.reshape((1, db_i.size))
+
     da_prev = np.dot(dz_i, w_i.T)
+
     return da_prev, dw_i, db_i
 
 
@@ -205,7 +214,7 @@ def activation_backward(da_i, activation_cache, activation, axis=None, keepdims=
     :param keepdims: 
     :return: 
     """
-    z_i = activation_cache
+    z_i, _, _ = activation_cache
 
     if activation == "sigmoid":
         gz_i = sigmoid_der(z_i)
@@ -218,3 +227,12 @@ def activation_backward(da_i, activation_cache, activation, axis=None, keepdims=
     else:
         raise Exception("Have not def this activation function!")
     return da_i * gz_i
+
+
+def keep_prob_backward(da_prev, activation_cache):
+    if activation_cache:
+        _, drop_mask, keep_prob = activation_cache
+        da_prev *= drop_mask
+        da_prev = da_prev / keep_prob
+    return da_prev
+

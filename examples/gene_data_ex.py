@@ -26,7 +26,7 @@ for j in range(K):
 # plt.show()
 
 nn = NeuralNetwork(X, y)
-nn.training([100],
+nn.training([50, 20, 10],
             learning_rate=0.1,
             num_iterations=10000,
             l2_lambda=0.001,

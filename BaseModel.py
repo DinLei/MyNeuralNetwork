@@ -27,15 +27,35 @@ class BaseModel:
         self.parameters = {}
         self.grads = {}
 
-    def _init_parameters(self, hidden_layers_dims):
-        hidden_layers_dims = list(hidden_layers_dims)
-        hidden_layers_dims.insert(0, self.x_dim)
-        hidden_layers_dims.append(self.class_num)
+    def _init_parameters(self, hidden_layers_dims, initialization="he"):
+        layers_dims = [self.x_dim]
+        layers_dims.extend(hidden_layers_dims)
+        layers_dims.append(self.class_num)
+        if initialization == "he":
+            self.parameters = self._init_parameters_he(layers_dims)
+        elif initialization == "zero":
+            self.parameters = self._init_parameters_random(layers_dims, 0.0)
+        elif initialization == "random":
+            self.parameters = self._init_parameters_random(layers_dims, 0.01)
+
+    @staticmethod
+    def _init_parameters_random(layers_dims, base):
         np.random.seed(1024)
-        for i in range(len(hidden_layers_dims)-1):
-            self.parameters["W" + str(i)] = np.random.randn(
-                hidden_layers_dims[i], hidden_layers_dims[i+1]) * 0.01
-            self.parameters["b" + str(i)] = np.zeros(
-                (1, hidden_layers_dims[i+1]))
+        parameters = {}
+        for i in range(len(layers_dims)-1):
+            parameters["W" + str(i)] = np.random.randn(
+                layers_dims[i], layers_dims[i+1]) * base
+            parameters["b" + str(i)] = np.zeros((1, layers_dims[i+1]))
+        return parameters
 
-
+    @staticmethod
+    def _init_parameters_he(layers_dims):
+        np.random.seed(1024)
+        parameters = {}
+        for l in range(len(layers_dims) - 1):
+            parameters['W' + str(l)] = np.random.randn(
+                layers_dims[l],
+                layers_dims[l+1]
+            ) * np.sqrt(2 / layers_dims[l])
+            parameters['b' + str(l)] = np.zeros((1, layers_dims[l+1]))
+        return parameters
