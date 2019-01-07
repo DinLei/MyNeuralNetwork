@@ -97,6 +97,45 @@ class NeuralNetwork(BaseModel):
             self.parameters["W"+str(i)] -= learning_rate * self.grads["dW"+str(i)]
             self.parameters["b" + str(i)] -= learning_rate * self.grads["db" + str(i)]
 
+    def _update_parameters_with_adam(self,
+                                     t=3,
+                                     learning_rate=0.01,
+                                     beta1=0.9, beta2=0.999,
+                                     epsilon=1e-8):
+
+        layers = len(self.parameters) // 2
+
+        v_corrected = {}
+        s_corrected = {}
+
+        for l in range(layers):
+            self.velocity["dW" + str(l)] = \
+                beta1 * self.velocity["dW" + str(l)] + \
+                (1 - beta1) * self.grads['dW' + str(l)]
+            self.velocity["db" + str(l)] = \
+                beta1 * self.velocity["db" + str(l)] + \
+                (1 - beta1) * self.grads['db' + str(l)]
+
+            v_corrected["dW" + str(l)] = self.velocity["dW" + str(l)] / (1 - np.power(beta1, t))
+            v_corrected["db" + str(l)] = self.velocity["db" + str(l)] / (1 - np.power(beta1, t))
+
+            self.rms_prop["dW" + str(l)] =\
+                beta2 * self.rms_prop["dW" + str(l)] + \
+                (1 - beta2) * np.power(self.grads['dW' + str(l)], 2)
+            self.rms_prop["db" + str(l)] = \
+                beta2 * self.rms_prop["db" + str(l)] + \
+                (1 - beta2) * np.power(self.grads['db' + str(l)], 2)
+
+            s_corrected["dW" + str(l)] = self.rms_prop["dW" + str(l)] / (1 - np.power(beta2, t))
+            s_corrected["db" + str(l)] = self.rms_prop["db" + str(l)] / (1 - np.power(beta2, t))
+
+            self.parameters["W" + str(l)] = \
+                self.parameters["W" + str(l)] - \
+                learning_rate * v_corrected["dW" + str(l)] / np.sqrt(s_corrected["dW" + str(l)] + epsilon)
+            self.parameters["b" + str(l)] = \
+                self.parameters["b" + str(l)] - \
+                learning_rate * v_corrected["db" + str(l)] / np.sqrt(s_corrected["db" + str(l)] + epsilon)
+
     def training(self,
                  layers_dims,
                  learning_rate=0.075,
@@ -104,6 +143,7 @@ class NeuralNetwork(BaseModel):
                  batch_size=100,
                  l2_lambda=None,
                  keep_prob=1,
+                 optimizer="adam",
                  print_cost=False):
         costs = []
         self.l2_lambda = l2_lambda
@@ -124,7 +164,10 @@ class NeuralNetwork(BaseModel):
                 a_l, caches = self._model_forward(batch_x, keep_prob=keep_prob)
                 cost = cross_entropy_loss(a_l, batch_y, self._get_l2_loss())
                 self._model_backward(a_l, caches, batch_y)
-                self._update_parameters(learning_rate)
+                if optimizer == "adam":
+                    self._update_parameters_with_adam(learning_rate=learning_rate)
+                else:
+                    self._update_parameters(learning_rate)
             if print_cost and i % 200 == 0:
                 print("Cost after iteration {i}: {c}".format(i=i, c=cost))
             if print_cost and i % 100 == 0:

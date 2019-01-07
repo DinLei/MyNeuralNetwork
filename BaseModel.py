@@ -26,6 +26,8 @@ class BaseModel:
 
         self.parameters = {}
         self.grads = {}
+        self.velocity = {}
+        self.rms_prop = {}
 
     def _init_parameters(self, hidden_layers_dims, initialization="he"):
         layers_dims = [self.x_dim]
@@ -37,6 +39,7 @@ class BaseModel:
             self.parameters = self._init_parameters_random(layers_dims, 0.0)
         elif initialization == "random":
             self.parameters = self._init_parameters_random(layers_dims, 0.01)
+        self._init_adam(self.parameters)
 
     @staticmethod
     def _init_parameters_random(layers_dims, base):
@@ -59,3 +62,13 @@ class BaseModel:
             ) * np.sqrt(2 / layers_dims[l])
             parameters['b' + str(l)] = np.zeros((1, layers_dims[l+1]))
         return parameters
+
+    def _init_adam(self, parameters):
+        layers = len(parameters) // 2
+        for l in range(layers):
+            self.velocity["dW" + str(l)] = np.zeros_like(parameters["W" + str(l)])
+            self.velocity["db" + str(l)] = np.zeros_like(parameters["b" + str(l)])
+
+            self.rms_prop["dW" + str(l)] = np.zeros_like(parameters["W" + str(l)])
+            self.rms_prop["db" + str(l)] = np.zeros_like(parameters["b" + str(l)])
+
